@@ -1,0 +1,12 @@
+# The main pipeline for multi_target
+resources:
+  pipelines:
+    multi_target_pipeline:
+      name: "[${bundle.target}] multi_target_pipeline"
+      target: multi_target_${bundle.target}
+      libraries:
+        - notebook:
+            path: ../src/dlt_pipeline.ipynb
+
+      configuration:
+        bundle.sourcePath: ${workspace.file_path}/src

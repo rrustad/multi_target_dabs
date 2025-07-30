@@ -1,0 +1,100 @@
+# Note:use anchors to define some jobs in some envs, and not others - search "anchor" to see where this end up
+definitions:
+  jobs:
+    multi_target_job: &multi-target-job
+      name: "[${bundle.target}] other_multi_target_job"
+
+      schedule:
+        quartz_cron_expression: '44 37 8 * * ?'
+        timezone_id: Europe/Amsterdam
+
+      email_notifications:
+        on_failure:
+          - riley.rustad@databricks.com
+
+      tasks:
+        - task_key: notebook_task
+          job_cluster_key: job_cluster
+          notebook_task:
+            notebook_path: src/notebook.ipynb
+        
+        - task_key: refresh_pipeline
+          depends_on:
+            - task_key: notebook_task
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.multi_target_pipeline.id}
+        
+      job_clusters:
+        - job_cluster_key: job_cluster
+          new_cluster:
+            spark_version: 13.3.x-scala2.12
+            node_type_id: Standard_D3_v2
+            autoscale:
+                min_workers: 1
+                max_workers: 4
+
+bundle:
+  name: multi_target
+
+include:
+  - resources/*.yml
+
+resources:
+  jobs:
+    child_nested_job:
+      name: "[${bundle.target}] child_nested_job"
+
+      tasks:
+        - task_key: notebook_task
+          notebook_task:
+            notebook_path: src/notebook.ipynb
+      permissions:
+      # Note, I can specify the permissions of a job in the job definition
+        - user_name: dan.davis@databricks.com 
+          level: IS_OWNER
+        - user_name: riley.rustad@databricks.com 
+          level: CAN_MANAGE
+      
+
+    # Note: Here's an example of a nested workflow with a pipeline defined by includes outside this .yml
+    parent_nested_job:
+      name: "[${bundle.target}] parent_nested_job"
+      tasks:
+        - task_key: child_nested_job_task
+          run_job_task:
+            job_id: ${resources.jobs.child_nested_job.id}
+      queue:
+        enabled: true
+
+
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://adb-984752964297111.11.azuredatabricks.net
+      root_path: /Workspace/riley.rustad@databricks.com/.bundle/${bundle.target}/${bundle.name}
+    resources:
+      jobs:
+      # Note: This job is defined above as a yaml anchor
+        multi_target_job: *multi-target-job
+          # Note: I don't think you can change the default config for this definition
+
+  uat:
+    workspace:
+      host: https://adb-984752964297111.11.azuredatabricks.net
+      root_path: /Workspace/riley.rustad@databricks.com/.bundle/${bundle.target}/${bundle.name}
+    resources:
+      jobs:
+      # Note: This job is defined above as a yaml anchor
+        multi_target_job: *multi-target-job
+
+  prod:
+    mode: production
+    workspace:
+      host: https://adb-984752964297111.11.azuredatabricks.net
+      root_path: /Workspace/tmp/.bundle/prod/${bundle.name}
+    run_as:
+      user_name: riley.rustad@databricks.com
+
