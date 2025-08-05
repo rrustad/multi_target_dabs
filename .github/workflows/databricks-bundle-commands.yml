@@ -1,0 +1,66 @@
+name: Databricks Bundle Commands
+
+on:
+  workflow_dispatch:
+    inputs:
+      command:
+        description: 'Bundle command to execute'
+        required: true
+        default: 'run'
+        type: choice
+        options:
+          - bind
+          - unbind
+          - run
+          - sync
+          - destroy
+      target:
+        description: 'Deployment target'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - uat
+          - psup
+          - prod
+      arguments:
+        description: 'Additional arguments (optional)'
+        required: false
+        default: ''
+        type: string
+
+env:
+  DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+  DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Databricks CLI
+      uses: databricks/setup-cli@main
+    
+    - name: Validate bundle
+      run: databricks bundle validate
+
+  execute-command:
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target }}
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Setup Databricks CLI
+      uses: databricks/setup-cli@main
+    
+    - name: Execute bundle command
+      run: |
+        command="databricks bundle ${{ github.event.inputs.command }} --target ${{ github.event.inputs.target }}"
+        if [ -n "${{ github.event.inputs.arguments }}" ]; then
+          command="$command ${{ github.event.inputs.arguments }}"
+        fi
+        echo "Executing: $command"
+        eval "$command"
