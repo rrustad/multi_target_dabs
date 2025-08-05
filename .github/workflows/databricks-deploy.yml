@@ -33,6 +33,7 @@ jobs:
   deploy:
     needs: validate
     runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.target }}
     steps:
     - uses: actions/checkout@v4
     
